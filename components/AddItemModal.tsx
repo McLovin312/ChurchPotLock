@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { sections } from "@/lib/data";
-import { CustomItem } from "@/lib/storage";
+import { CustomItem } from "@/lib/actions";
 
 type Props = {
   defaultSectionId: string;

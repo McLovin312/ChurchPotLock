@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Playfair_Display } from "next/font/google";
 import "./globals.css";
+import Nav from "@/components/Nav";
 
 const geist = Geist({
   variable: "--font-geist-sans",
@@ -15,17 +16,17 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Lakeside Young Adults - Cinco de Mayo Potluck",
-  description:
-    "Sign up to bring food or drinks to the Lakeside Young Adults Cinco de Mayo potluck!",
+  title: "Lakeside Young Adults",
+  description: "Community, faith, and fun - Lakeside Church Young Adults group events and signups.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${geist.variable} ${playfair.variable} antialiased`}>
-      <body className="min-h-screen">{children}</body>
+      <body className="min-h-screen">
+        <Nav />
+        {children}
+      </body>
     </html>
   );
 }
