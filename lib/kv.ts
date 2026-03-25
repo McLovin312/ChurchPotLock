@@ -1,13 +1,16 @@
 /**
  * lib/kv.ts - Persistent key-value storage
  *
- * Production  : Vercel KV (Redis). Needs KV_REST_API_URL + KV_REST_API_TOKEN env vars.
- *               Create a KV store in your Vercel dashboard → Storage tab, then
- *               run `vercel env pull .env.local` to get the vars locally.
+ * Production  : Upstash Redis via @upstash/redis.
+ *               Requires KV_REST_API_URL + KV_REST_API_TOKEN env vars.
+ *               In Vercel: Storage tab -> connect your KV store -> vars are auto-injected.
+ *               Locally: run `vercel env pull .env.local` to pull them down.
  *
- * Development : Falls back to a local `.dev-db.json` file (data survives hot reloads,
- *               resets on clean `rm .dev-db.json`). File is git-ignored.
+ * Development : Falls back to a local `.dev-db.json` file when the env vars are absent.
+ *               File is git-ignored and survives hot reloads.
  */
+
+import { Redis } from "@upstash/redis";
 
 const LOCAL_DB = ".dev-db.json";
 
@@ -35,15 +38,27 @@ function writeLocal(data: Record<string, unknown>): void {
   } catch { /* ignore */ }
 }
 
+/* ── Redis client (production only) ─────────────────────────────────── */
+
+function isKvConfigured(): boolean {
+  return !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+}
+
+function getRedis(): Redis {
+  return new Redis({
+    url:   process.env.KV_REST_API_URL!,
+    token: process.env.KV_REST_API_TOKEN!,
+  });
+}
+
 /* ── Public API ──────────────────────────────────────────────────────── */
 
 export async function dbGet<T>(key: string): Promise<T | null> {
-  if (process.env.KV_REST_API_URL) {
-    const { kv } = await import("@vercel/kv");
-    const val = await kv.get<unknown>(key);
+  if (isKvConfigured()) {
+    const redis = getRedis();
+    const val = await redis.get<unknown>(key);
     if (val === null || val === undefined) return null;
-    // @vercel/kv v3 may return a raw JSON string rather than a parsed object.
-    // Parse it if so; otherwise the value was already deserialized by the client.
+    // Upstash returns already-parsed objects; handle raw strings defensively
     if (typeof val === "string") {
       try { return JSON.parse(val) as T; } catch { return null; }
     }
@@ -53,11 +68,9 @@ export async function dbGet<T>(key: string): Promise<T | null> {
 }
 
 export async function dbSet(key: string, value: unknown): Promise<void> {
-  if (process.env.KV_REST_API_URL) {
-    const { kv } = await import("@vercel/kv");
-    // Always stringify explicitly so complex nested objects survive any
-    // version of @vercel/kv without relying on automatic serialization.
-    await kv.set(key, JSON.stringify(value));
+  if (isKvConfigured()) {
+    const redis = getRedis();
+    await redis.set(key, JSON.stringify(value));
     return;
   }
   const db = readLocal();
@@ -66,9 +79,9 @@ export async function dbSet(key: string, value: unknown): Promise<void> {
 }
 
 export async function dbDel(key: string): Promise<void> {
-  if (process.env.KV_REST_API_URL) {
-    const { kv } = await import("@vercel/kv");
-    await kv.del(key);
+  if (isKvConfigured()) {
+    const redis = getRedis();
+    await redis.del(key);
     return;
   }
   const db = readLocal();
