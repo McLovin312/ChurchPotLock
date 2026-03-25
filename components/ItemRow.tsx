@@ -8,19 +8,21 @@ type Props = {
   item: Item;
   claims: Claim[];
   isAdmin: boolean;
+  hidden?: boolean;
   customImage?: string;
   quantityOverride?: string;
   accentColor: string;
   onSelect: () => void;
   onRemoveClaim: (claimId: string) => Promise<void>;
   onRemove: () => Promise<void>;
+  onUnhide: () => Promise<void>;
   onUploadImage: (dataUrl: string) => Promise<void>;
   onEditItem: (updates: { name?: string; description?: string; emoji?: string; quantity?: string }) => Promise<void>;
 };
 
 export default function ItemRow({
-  item, claims, isAdmin, customImage, quantityOverride, accentColor,
-  onSelect, onRemoveClaim, onRemove, onUploadImage, onEditItem,
+  item, claims, isAdmin, hidden = false, customImage, quantityOverride, accentColor,
+  onSelect, onRemoveClaim, onRemove, onUnhide, onUploadImage, onEditItem,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [editingQty, setEditingQty] = useState(false);
@@ -30,6 +32,11 @@ export default function ItemRow({
   const hasClaims     = claims.length > 0;
   const visibleClaims = claims.slice(0, 4);
   const overflow      = claims.length - 4;
+
+  function claimInitials(claim: Claim): string {
+    if (claim.initials) return claim.initials;
+    return claim.name.trim().split(/\s+/).map(w => w[0]?.toUpperCase() ?? "").slice(0, 2).join("");
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -51,6 +58,29 @@ export default function ItemRow({
     const trimmed = qtyInput.trim();
     if (trimmed && trimmed !== displayQty) onEditItem({ quantity: trimmed });
     setEditingQty(false);
+  }
+
+  /* ── Hidden item (admin only) ── */
+  if (hidden) {
+    return (
+      <div className="px-4 py-3 flex items-center gap-3 opacity-40">
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 text-xl" style={{ background: "#F5EFE6" }}>
+          {item.emoji}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm text-gray-400 line-through">{item.name}</p>
+          <p className="text-xs mt-0.5" style={{ color: "#C4B5A5" }}>Hidden</p>
+        </div>
+        <button
+          onClick={e => { e.stopPropagation(); onUnhide(); }}
+          className="text-xs px-3 py-1.5 rounded-full font-semibold transition-all"
+          style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0", opacity: 1 }}
+          title="Restore item"
+        >
+          Restore
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -168,7 +198,7 @@ export default function ItemRow({
                   style={{ background: "#F0FDF4", borderColor: "#BBF7D0", color: "#166534" }}
                   title={`${claim.name} - ${claim.quantity}`}
                 >
-                  <span className="font-bold">{claim.initials}</span>
+                  <span className="font-bold">{claimInitials(claim)}</span>
                   <span className="opacity-80 truncate font-medium" style={{ maxWidth: 110 }}>{claim.name}</span>
                   <span className="opacity-40">·</span>
                   <span className="opacity-60 truncate" style={{ maxWidth: 70 }}>{claim.quantity}</span>
@@ -187,9 +217,9 @@ export default function ItemRow({
                     key={claim.claimId}
                     className="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center ring-2 ring-white flex-shrink-0"
                     style={{ background: "linear-gradient(135deg,#2A6041,#3A7A51)", marginLeft: i > 0 ? -6 : 0, zIndex: visibleClaims.length - i }}
-                    title={`${claim.initials} - ${claim.quantity}`}
+                    title={`${claimInitials(claim)} - ${claim.quantity}`}
                   >
-                    {claim.initials}
+                    {claimInitials(claim)}
                   </div>
                 ))}
                 {overflow > 0 && (
@@ -202,7 +232,7 @@ export default function ItemRow({
                 )}
               </div>
               <span className="text-xs" style={{ color: "#9B8B7E" }}>
-                {claims.length === 1 ? `${claims[0].initials} is bringing this` : `${claims.length} people signed up`}
+                {claims.length === 1 ? `${claimInitials(claims[0])} is bringing this` : `${claims.length} people signed up`}
               </span>
             </>
           )}

@@ -14,6 +14,7 @@ type Props = {
   onSelect: (item: Item) => void;
   onRemoveClaim: (itemId: string, claimId: string) => Promise<void>;
   onRemoveItem: (itemId: string) => Promise<void>;
+  onUnhideItem: (itemId: string) => Promise<void>;
   onAddItem: (sectionId: string) => void;
   onUploadImage: (itemId: string, dataUrl: string) => Promise<void>;
   onEditItem: (itemId: string, updates: { name?: string; description?: string; emoji?: string; quantity?: string }) => Promise<void>;
@@ -22,7 +23,7 @@ type Props = {
 
 export default function SectionCard({
   section, claims, isAdmin, itemImages, quantityOverrides,
-  onSelect, onRemoveClaim, onRemoveItem, onAddItem, onUploadImage, onEditItem,
+  onSelect, onRemoveClaim, onRemoveItem, onUnhideItem, onAddItem, onUploadImage, onEditItem,
   defaultOpen = false,
 }: Props) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -103,12 +104,14 @@ export default function SectionCard({
                   item={item}
                   claims={claims[item.id] ?? []}
                   isAdmin={isAdmin}
+                  hidden={(item as Item & { hidden?: boolean }).hidden ?? false}
                   customImage={itemImages[item.id]}
                   quantityOverride={quantityOverrides[item.id]}
                   accentColor={section.accentColor}
                   onSelect={() => onSelect(item)}
                   onRemoveClaim={claimId => onRemoveClaim(item.id, claimId)}
                   onRemove={() => onRemoveItem(item.id)}
+                  onUnhide={() => onUnhideItem(item.id)}
                   onUploadImage={dataUrl => onUploadImage(item.id, dataUrl)}
                   onEditItem={updates => onEditItem(item.id, updates)}
                 />

@@ -61,6 +61,11 @@ function checkAdmin(pw: string) {
   if (pw !== SITE_CONFIG.adminPassword) throw new Error("Unauthorized");
 }
 
+/** Server action: returns true if password is correct, false otherwise. */
+export async function verifyAdmin(pw: string): Promise<boolean> {
+  return pw === SITE_CONFIG.adminPassword;
+}
+
 function uniqueId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -167,6 +172,13 @@ export async function removeItem(itemId: string, adminPw: string): Promise<void>
   ]);
   if (claims) { delete claims[itemId]; await dbSet(K.CLAIMS, claims); }
   if (imgs)   { delete imgs[itemId];   await dbSet(K.IMAGES, imgs);   }
+  revalidatePath(REVALIDATE_PATH);
+}
+
+export async function unhideItem(itemId: string, adminPw: string): Promise<void> {
+  checkAdmin(adminPw);
+  const hidden = (await dbGet<string[]>(K.HIDDEN)) ?? [];
+  await dbSet(K.HIDDEN, hidden.filter(id => id !== itemId));
   revalidatePath(REVALIDATE_PATH);
 }
 

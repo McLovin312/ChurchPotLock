@@ -6,13 +6,12 @@ import { sections, Item } from "@/lib/data";
 import {
   PotluckState, Claim, CustomItem,
   addClaim, removeClaim, resetAllClaims,
-  addCustomItem, editItem, removeItem, setItemImage,
+  addCustomItem, editItem, removeItem, unhideItem, setItemImage, verifyAdmin,
 } from "@/lib/actions";
 import {
   isAdminAuthed, setAdminAuthed,
   getStoredAdminPw, storeAdminPw,
 } from "@/lib/storage";
-import { SITE_CONFIG } from "@/lib/config";
 import SectionCard from "./SectionCard";
 import ClaimModal from "./ClaimModal";
 import AddItemModal from "./AddItemModal";
@@ -68,10 +67,13 @@ export default function PotluckTracker({ initialState }: Props) {
   const enrichedSections = sections.map(section => ({
     ...section,
     items: [
-      ...section.items.filter(item => !hiddenIds.includes(item.id)),
+      // In admin mode include hidden static items (marked); non-admin filters them out
+      ...section.items
+        .filter(item => isAdmin || !hiddenIds.includes(item.id))
+        .map(item => ({ ...item, hidden: hiddenIds.includes(item.id) })),
       ...state.customItems
         .filter(ci => ci.sectionId === section.id)
-        .map(ci => ({ id: ci.id, name: ci.name, description: ci.description, emoji: ci.emoji, quantity: ci.quantity })),
+        .map(ci => ({ id: ci.id, name: ci.name, description: ci.description, emoji: ci.emoji, quantity: ci.quantity, hidden: false })),
     ],
   }));
 
@@ -148,6 +150,17 @@ export default function PotluckTracker({ initialState }: Props) {
     } finally { setBusy(false); }
   }
 
+  async function handleUnhideItem(itemId: string) {
+    setBusy(true);
+    try {
+      await unhideItem(itemId, adminPw);
+      await refreshState();
+      showToast("Item restored", "info");
+    } catch {
+      showToast("Failed to restore item", "error");
+    } finally { setBusy(false); }
+  }
+
   async function handleUploadImage(itemId: string, dataUrl: string) {
     setBusy(true);
     try {
@@ -162,8 +175,8 @@ export default function PotluckTracker({ initialState }: Props) {
   /* ── Admin login / logout ── */
   async function handleAdminLogin(e: React.FormEvent) {
     e.preventDefault();
-    // Verify by attempting a no-op server action
-    if (adminPwInput === SITE_CONFIG.adminPassword) {
+    const ok = await verifyAdmin(adminPwInput);
+    if (ok) {
       setAdminAuthed(true);
       storeAdminPw(adminPwInput);
       setAdminPw(adminPwInput);
@@ -291,6 +304,7 @@ export default function PotluckTracker({ initialState }: Props) {
                 onSelect={setPendingItem}
                 onRemoveClaim={handleRemoveClaim}
                 onRemoveItem={handleRemoveItem}
+                onUnhideItem={handleUnhideItem}
                 onAddItem={setAddItemSection}
                 onUploadImage={handleUploadImage}
                 onEditItem={handleEditItem}
