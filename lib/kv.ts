@@ -40,7 +40,14 @@ function writeLocal(data: Record<string, unknown>): void {
 export async function dbGet<T>(key: string): Promise<T | null> {
   if (process.env.KV_REST_API_URL) {
     const { kv } = await import("@vercel/kv");
-    return kv.get<T>(key);
+    const val = await kv.get<unknown>(key);
+    if (val === null || val === undefined) return null;
+    // @vercel/kv v3 may return a raw JSON string rather than a parsed object.
+    // Parse it if so; otherwise the value was already deserialized by the client.
+    if (typeof val === "string") {
+      try { return JSON.parse(val) as T; } catch { return null; }
+    }
+    return val as T;
   }
   return (readLocal()[key] as T) ?? null;
 }
@@ -48,8 +55,9 @@ export async function dbGet<T>(key: string): Promise<T | null> {
 export async function dbSet(key: string, value: unknown): Promise<void> {
   if (process.env.KV_REST_API_URL) {
     const { kv } = await import("@vercel/kv");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await kv.set(key, value as any);
+    // Always stringify explicitly so complex nested objects survive any
+    // version of @vercel/kv without relying on automatic serialization.
+    await kv.set(key, JSON.stringify(value));
     return;
   }
   const db = readLocal();

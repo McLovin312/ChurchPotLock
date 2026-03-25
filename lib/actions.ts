@@ -8,7 +8,7 @@
  */
 
 import { dbGet, dbSet } from "./kv";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 import { SITE_CONFIG } from "./config";
 
 /* ── Keys ───────────────────────────────────────────────────────────── */
@@ -73,6 +73,7 @@ function uniqueId(): string {
 /* ── Read ────────────────────────────────────────────────────────────── */
 
 export async function getState(): Promise<PotluckState> {
+  noStore(); // opt out of Next.js data cache so polls always get fresh KV data
   const [claims, customItems, hiddenItemIds, itemImages, quantityOverrides] = await Promise.all([
     dbGet<Record<string, Claim[]>>(K.CLAIMS),
     dbGet<CustomItem[]>(K.CUSTOM),
