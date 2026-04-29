@@ -334,6 +334,7 @@ export default function PotluckTracker({ initialState }: Props) {
           item={pendingItem}
           customImage={state.itemImages[pendingItem.id]}
           quantityOverride={state.quantityOverrides[pendingItem.id]}
+          existingClaims={state.claims[pendingItem.id] ?? []}
           onConfirm={handleClaim}
           onCancel={() => setPendingItem(null)}
         />

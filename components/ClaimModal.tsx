@@ -2,21 +2,51 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Item } from "@/lib/data";
+import { Claim } from "@/lib/actions";
 
 type Props = {
   item: Item;
   customImage?: string;
   quantityOverride?: string;
+  existingClaims?: Claim[];
   onConfirm: (name: string, quantity: string) => void;
   onCancel: () => void;
 };
 
-export default function ClaimModal({ item, customImage, quantityOverride, onConfirm, onCancel }: Props) {
+function parseQty(q: string | undefined): number | null {
+  if (!q) return null;
+  const m = q.trim().match(/-?\d+(\.\d+)?/);
+  if (!m) return null;
+  const n = parseFloat(m[0]);
+  return isNaN(n) ? null : n;
+}
+
+function qtySuffix(q: string | undefined): string {
+  if (!q) return "";
+  const m = q.trim().match(/^-?\d+(?:\.\d+)?\s*(.*)$/);
+  return m ? m[1].trim() : "";
+}
+
+function formatNum(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, "");
+}
+
+export default function ClaimModal({ item, customImage, quantityOverride, existingClaims = [], onConfirm, onCancel }: Props) {
+  const displayQty       = quantityOverride ?? item.quantity;
+  const recommendedQty   = parseQty(displayQty);
+  const claimedQty       = existingClaims.reduce((sum, c) => sum + (parseQty(c.quantity) ?? 0), 0);
+  const remainingQty     = recommendedQty !== null ? Math.max(0, recommendedQty - claimedQty) : null;
+  const unitSuffix       = qtySuffix(displayQty);
+  const remainingLabel   =
+    remainingQty !== null
+      ? `${formatNum(remainingQty)}${unitSuffix ? " " + unitSuffix : ""}`
+      : displayQty;
+  const defaultQuantity  = remainingLabel ?? "";
+
   const [name,     setName]     = useState("");
-  const [quantity, setQuantity] = useState(quantityOverride ?? item.quantity ?? "");
+  const [quantity, setQuantity] = useState(defaultQuantity);
   const [error,    setError]    = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
-  const displayQty = quantityOverride ?? item.quantity;
 
   useEffect(() => { nameRef.current?.focus(); }, []);
   useEffect(() => {
@@ -29,6 +59,11 @@ export default function ClaimModal({ item, customImage, quantityOverride, onConf
     e.preventDefault();
     if (!name.trim())     { setError("Please enter your name."); return; }
     if (!quantity.trim()) { setError("Please tell us how much you're bringing."); return; }
+    const entered = parseQty(quantity);
+    if (remainingQty !== null && entered !== null && entered > remainingQty) {
+      setError(`Only ${remainingLabel} still needed. Please lower your amount.`);
+      return;
+    }
     onConfirm(name.trim(), quantity.trim());
   }
 
@@ -76,12 +111,19 @@ export default function ClaimModal({ item, customImage, quantityOverride, onConf
               <input
                 type="text" value={quantity}
                 onChange={e => { setQuantity(e.target.value); setError(""); }}
-                placeholder={displayQty ?? "e.g. 2 bags, 1 gallon…"}
+                placeholder={remainingLabel ?? "e.g. 2 bags, 1 gallon…"}
                 className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300 placeholder:text-gray-300"
               />
               {displayQty && (
                 <p className="text-xs mt-1.5" style={{ color: "#9B8B7E" }}>
-                  Suggested: <span className="font-medium text-gray-600">{displayQty}</span>
+                  {recommendedQty !== null && claimedQty > 0 ? (
+                    <>
+                      Still needed: <span className="font-medium text-gray-600">{remainingLabel}</span>
+                      <span className="ml-1 opacity-70">({formatNum(claimedQty)} of {formatNum(recommendedQty)} already covered)</span>
+                    </>
+                  ) : (
+                    <>Suggested: <span className="font-medium text-gray-600">{displayQty}</span></>
+                  )}
                 </p>
               )}
             </div>

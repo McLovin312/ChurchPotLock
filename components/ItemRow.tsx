@@ -33,6 +33,33 @@ export default function ItemRow({
   const visibleClaims = claims.slice(0, 4);
   const overflow      = claims.length - 4;
 
+  // Pull the leading number out of a quantity string ("2 bags" → 2, "1 gallon" → 1).
+  // Returns null when no number is present so we can fall back to allowing more claims.
+  function parseQty(q: string | undefined): number | null {
+    if (!q) return null;
+    const m = q.trim().match(/-?\d+(\.\d+)?/);
+    if (!m) return null;
+    const n = parseFloat(m[0]);
+    return isNaN(n) ? null : n;
+  }
+
+  // Grab the unit text after the leading number ("20 cans of beans" → "cans of beans").
+  function qtySuffix(q: string | undefined): string {
+    if (!q) return "";
+    const m = q.trim().match(/^-?\d+(?:\.\d+)?\s*(.*)$/);
+    return m ? m[1].trim() : "";
+  }
+
+  const recommendedQty = parseQty(displayQty);
+  const claimedQty     = claims.reduce((sum, c) => sum + (parseQty(c.quantity) ?? 0), 0);
+  const remainingQty   = recommendedQty !== null ? Math.max(0, recommendedQty - claimedQty) : null;
+  const fullyClaimed   = recommendedQty !== null && claimedQty >= recommendedQty;
+  const unitSuffix     = qtySuffix(displayQty);
+  const remainingLabel =
+    remainingQty !== null
+      ? `${Number.isInteger(remainingQty) ? remainingQty : remainingQty.toFixed(2).replace(/\.?0+$/, "")}${unitSuffix ? " " + unitSuffix : ""}`
+      : displayQty;
+
   function claimInitials(claim: Claim): string {
     if (claim.initials) return claim.initials;
     return claim.name.trim().split(/\s+/).map(w => w[0]?.toUpperCase() ?? "").slice(0, 2).join("");
@@ -84,16 +111,21 @@ export default function ItemRow({
   }
 
   return (
-    <div className="px-4 py-3.5 transition-colors duration-150" style={{ background: "transparent" }}>
+    <div className="px-4 py-3.5 transition-colors duration-150" style={{ background: fullyClaimed ? "#F9F7F2" : "transparent" }}>
 
       {/* ── Main row ── */}
       <div className="flex items-start gap-3">
 
         {/* Food icon */}
         <div
-          className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 text-xl mt-0.5 overflow-hidden cursor-pointer"
-          style={{ background: customImage ? "transparent" : accentColor + "18", border: customImage ? "none" : `1px solid ${accentColor}28` }}
-          onClick={onSelect}
+          className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 text-xl mt-0.5 overflow-hidden ${fullyClaimed ? "cursor-not-allowed" : "cursor-pointer"}`}
+          style={{
+            background: customImage ? "transparent" : accentColor + "18",
+            border: customImage ? "none" : `1px solid ${accentColor}28`,
+            opacity: fullyClaimed ? 0.55 : 1,
+            filter: fullyClaimed ? "grayscale(0.5)" : "none",
+          }}
+          onClick={fullyClaimed ? undefined : onSelect}
         >
           {customImage
             ? <img src={customImage} alt="" className="w-full h-full object-cover" />
@@ -102,7 +134,11 @@ export default function ItemRow({
         </div>
 
         {/* Text */}
-        <div className="flex-1 min-w-0 cursor-pointer" onClick={onSelect}>
+        <div
+          className={`flex-1 min-w-0 ${fullyClaimed ? "cursor-not-allowed" : "cursor-pointer"}`}
+          style={{ opacity: fullyClaimed ? 0.6 : 1 }}
+          onClick={fullyClaimed ? undefined : onSelect}
+        >
           <p className="font-semibold text-sm leading-snug text-gray-800">{item.name}</p>
           <p className="text-xs mt-0.5 truncate" style={{ color: "#9B8B7E" }}>{item.description}</p>
           {displayQty && (
@@ -121,8 +157,15 @@ export default function ItemRow({
               ) : (
                 <>
                   <span className="text-xs font-medium" style={{ color: accentColor + "BB" }}>
-                    Needed: {displayQty}
+                    {fullyClaimed
+                      ? `Covered: ${displayQty}`
+                      : `Needed: ${remainingLabel}`}
                   </span>
+                  {recommendedQty !== null && claimedQty > 0 && !fullyClaimed && (
+                    <span className="text-[10px]" style={{ color: "#9B8B7E" }}>
+                      ({claimedQty} of {recommendedQty} so far)
+                    </span>
+                  )}
                   {isAdmin && (
                     <button
                       onClick={e => { e.stopPropagation(); startEditQty(); }}
@@ -143,14 +186,28 @@ export default function ItemRow({
         {/* Right-side controls */}
         <div className="flex-shrink-0 flex flex-col items-end gap-2">
 
-          {/* Claim button - always visible */}
-          <button
-            onClick={onSelect}
-            className="text-xs px-3 py-1.5 rounded-full font-semibold whitespace-nowrap transition-all hover:shadow-sm"
-            style={{ background: accentColor + "18", color: accentColor, border: `1px solid ${accentColor}25` }}
-          >
-            {hasClaims ? "I'll bring some too +" : "Claim →"}
-          </button>
+          {/* Claim button - locks when claims meet the recommended quantity */}
+          {fullyClaimed ? (
+            <button
+              disabled
+              title="Fully covered - no more needed"
+              className="text-xs px-3 py-1.5 rounded-full font-semibold whitespace-nowrap cursor-not-allowed flex items-center gap-1"
+              style={{ background: "#F3F4F6", color: "#9CA3AF", border: "1px solid #E5E7EB" }}
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+              Fully covered
+            </button>
+          ) : (
+            <button
+              onClick={onSelect}
+              className="text-xs px-3 py-1.5 rounded-full font-semibold whitespace-nowrap transition-all hover:shadow-sm"
+              style={{ background: accentColor + "18", color: accentColor, border: `1px solid ${accentColor}25` }}
+            >
+              {hasClaims ? "I'll bring some too +" : "Claim →"}
+            </button>
+          )}
 
           {/* Admin item controls */}
           {isAdmin && (
